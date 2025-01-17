@@ -108,7 +108,7 @@ def scrape_bjjfanatics_collections(pages=2):
             print(f"[DEBUG] Found {len(products)} products on page {page_num}.")
             
             if len(products) == 0:
-                print("[WARN] 0 products found. Possibly HTML structure changed or we’re blocked?")
+                print("[WARN] 0 products found. Possibly HTML structure changed or we're blocked?")
             
             for product in products:
                 link_tag = product.find("a", class_="product-link")
