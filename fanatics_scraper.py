@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-bjj_scraper_verbose.py
+fanatics_scraper_verbose.py
 
 A verbose script to scrape BJJFanatics for BJJ instructionals
-and store them in a local SQLite database. Includes extra print
-statements to help debug issues (e.g. no .db file created).
+and store them in a local SQLite database, with debug prints
+for troubleshooting.
 """
 
 import os
@@ -17,18 +17,17 @@ DB_NAME = "bjjfanatics.db"
 
 def create_database():
     """
-    Creates (if not present) a local SQLite database called 'bjjfanatics.db'
+    Create (if not present) a local SQLite database named bjjfanatics.db
     and an 'instructionals' table to store the scraped data.
-    Verbose prints help confirm each step.
     """
     print("[DEBUG] create_database(): Starting database creation logic...")
     
-    # Print the current working directory to confirm where the .db file will be created
+    # Print the current working directory so you know where the .db file goes
     cwd = os.getcwd()
     print(f"[DEBUG] Current working directory: {cwd}")
     
     try:
-        # Connect (creates the file if it doesn't exist)
+        # Connect (creates bjjfanatics.db if it doesn't exist)
         conn = sqlite3.connect(DB_NAME)
         print(f"[DEBUG] Connected to '{DB_NAME}' database successfully.")
         
@@ -53,8 +52,8 @@ def create_database():
 
 def insert_instructional(name, creator, price, product_url):
     """
-    Inserts a single record into the 'instructionals' table.
-    Provides verbose output for debug.
+    Insert a single record into the 'instructionals' table.
+    Provides verbose output for debugging.
     """
     print(f"[DEBUG] insert_instructional(): Attempting to insert:\n"
           f"        name={name}, creator={creator}, price={price}, url={product_url}")
@@ -74,15 +73,14 @@ def insert_instructional(name, creator, price, product_url):
 
 def scrape_bjjfanatics_collections(pages=2):
     """
-    Scrapes the BJJFanatics /collections/all page(s).
-    Defaults to 2 pages, but you can adjust.
-    Prints verbose info for each step to help you see status codes,
-    how many products were found, etc.
+    Scrape the BJJFanatics /collections/all pages.
+    Defaults to 2 pages, but you can adjust. Includes extra debug prints.
     """
     print(f"[DEBUG] scrape_bjjfanatics_collections(): Starting to scrape {pages} pages.")
     
     base_url = "https://bjjfanatics.com"
     headers = {
+        # A user-agent to reduce the chance of being blocked as a bot
         "User-Agent": "mybjjbot/1.0 (+https://example.com)"
     }
 
@@ -98,15 +96,16 @@ def scrape_bjjfanatics_collections(pages=2):
                 print("[WARN] Non-200 status code. Stopping further scraping.")
                 break
             
-            # Check a snippet of the response to ensure we're getting the expected HTML
-            print("[DEBUG] HTML snippet:", response.text[:200].replace("\n", " "))
+            # Print a snippet of the response to ensure we got real product HTML
+            html_snippet = response.text[:300].replace("\n", " ")
+            print(f"[DEBUG] HTML snippet (first 300 chars): {html_snippet}")
             
             soup = BeautifulSoup(response.text, "html.parser")
             
-            # This CSS class might change if BJJFanatics updates their site/theme
+            # Look for divs with class="product-grid-item"
             products = soup.find_all("div", class_="product-grid-item")
             print(f"[DEBUG] Found {len(products)} products on page {page_num}.")
-            
+
             if len(products) == 0:
                 print("[WARN] 0 products found. Possibly HTML structure changed or we're blocked?")
             
@@ -119,11 +118,11 @@ def scrape_bjjfanatics_collections(pages=2):
                 product_url = base_url + link_tag.get("href", "")
                 raw_title = link_tag.get("title", "").strip()
                 
-                # Price might be inside <span class="price"> 
+                # Attempt to get price
                 price_tag = product.find("span", class_="price")
                 price = price_tag.get_text(strip=True) if price_tag else "N/A"
                 
-                # Attempt to parse "Creator - Title" if present in raw_title
+                # Try parsing "Creator - Title" if present
                 creator = None
                 product_name = raw_title
                 if " - " in raw_title:
@@ -132,26 +131,26 @@ def scrape_bjjfanatics_collections(pages=2):
                         creator = parts[0].strip()
                         product_name = parts[1].strip()
                 
-                # Insert record into DB
+                # Insert record into the database
                 insert_instructional(product_name, creator, price, product_url)
             
-            # Sleep to avoid hammering the server
+            # Sleep a bit to avoid hammering the server
             time.sleep(1)
         
         except requests.exceptions.RequestException as req_err:
             print(f"[ERROR] Network error on page {page_num}:", req_err)
-            break  # Stop scraping if a major network error occurred
+            break
         except Exception as e:
             print("[ERROR] scrape_bjjfanatics_collections():", e)
-            break  # For any unforeseen errors, stop
+            break
 
 def main():
     print("[DEBUG] main(): Starting script execution...")
     
-    # 1) Create DB if not exists
+    # Create the DB and table if needed
     create_database()
     
-    # 2) Scrape pages
+    # Scrape some pages (default = 2)
     scrape_bjjfanatics_collections(pages=2)
     
     print("[DEBUG] main(): Script completed. Check for 'bjjfanatics.db' and confirm data.")
