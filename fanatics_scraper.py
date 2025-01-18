@@ -7,11 +7,12 @@ with a more robust wait (WebDriverWait) instead of fixed sleeps.
 
 Data is stored in a local SQLite database (bjjfanatics.db),
 with a table named 'instructionals'.
+
+Now includes traceback.print_exc() for detailed error info.
 """
 
 import os
 import sqlite3
-import time
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -22,9 +23,6 @@ from bs4 import BeautifulSoup
 
 DB_NAME = "bjjfanatics.db"
 
-###############################################################################
-# 1. DATABASE SETUP
-###############################################################################
 def create_database():
     """
     Create a local SQLite database if it doesn't exist,
@@ -80,9 +78,6 @@ def insert_instructional(name, creator, price, product_url):
     except Exception as e:
         print("[ERROR] insert_instructional():", e)
 
-###############################################################################
-# 2. SCRAPING WITH SELENIUM (HEADLESS CHROME) + WEBDRIVERWAIT
-###############################################################################
 def scrape_bjjfanatics_selenium(pages=2):
     """
     Use Selenium (headless Chrome) to scrape BJJFanatics /collections/all
@@ -101,11 +96,9 @@ def scrape_bjjfanatics_selenium(pages=2):
 
     print(f"[DEBUG] scrape_bjjfanatics_selenium(): Starting to scrape {pages} pages.")
 
-    # 1) Set up headless Chrome
     chrome_options = Options()
-    chrome_options.add_argument("--headless")  # Run Chrome in headless mode
+    chrome_options.add_argument("--headless")  # Headless mode
     
-    # Create WebDriver
     driver = webdriver.Chrome(options=chrome_options)
     base_url = "https://bjjfanatics.com"
 
@@ -116,20 +109,14 @@ def scrape_bjjfanatics_selenium(pages=2):
         try:
             driver.get(url)
             
-            # 2) Use WebDriverWait to wait for "div.product-card" elements to load
-            wait = WebDriverWait(driver, 15)  # up to 15 seconds
-            # Wait until at least one product-card appears OR 15s passes
+            wait = WebDriverWait(driver, 15)
             wait.until(
                 EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div.product-card"))
             )
 
-            # 3) Grab final rendered HTML from Selenium
             html = driver.page_source
-
-            # 4) Parse with BeautifulSoup
             soup = BeautifulSoup(html, "html.parser")
 
-            # 5) Find product elements (adjust the selector if needed)
             products = soup.find_all("div", class_="product-card")
             print(f"[DEBUG] Found {len(products)} products on page {page_num}.")
 
@@ -137,26 +124,21 @@ def scrape_bjjfanatics_selenium(pages=2):
                 print("[WARN] 0 products found. Possibly structure changed or still blocked?")
 
             for product in products:
-                # Example: <h2 class="product-card__item-title">Name</h2>
                 title_tag = product.find("h2", class_="product-card__item-title")
                 if not title_tag:
-                    # Fallback or skip
                     continue
 
                 product_name = title_tag.get_text(strip=True)
 
-                # If there's a link inside, e.g., <a class="product-card__item-title" href="...">
                 link_tag = product.find("a", class_="product-card__item-title")
                 if link_tag:
                     product_url = base_url + link_tag.get("href", "")
                 else:
                     product_url = None
 
-                # If there's a price element, e.g. <span class="product-card__price">$77.00</span>
                 price_tag = product.find("span", class_="product-card__price")
                 price = price_tag.get_text(strip=True) if price_tag else "N/A"
 
-                # Optional: parse out "Creator - Title"
                 creator = None
                 if " - " in product_name:
                     parts = product_name.split(" - ", 1)
@@ -164,27 +146,21 @@ def scrape_bjjfanatics_selenium(pages=2):
                         creator = parts[0].strip()
                         product_name = parts[1].strip()
 
-                # Insert into DB
                 insert_instructional(product_name, creator, price, product_url)
 
         except Exception as e:
             print("[ERROR] scrape_bjjfanatics_selenium():", e)
-            break  # stop on major error
+            import traceback
+            traceback.print_exc()  # prints the full stack trace
+            break
 
-    # Close the browser
     driver.quit()
     print("[DEBUG] Done scraping with Selenium + WebDriverWait.")
 
-###############################################################################
-# 3. MAIN EXECUTION
-###############################################################################
 def main():
     print("[DEBUG] main(): Starting script execution...")
 
-    # 1) Create database/tables if needed
     create_database()
-
-    # 2) Scrape using Selenium in headless mode + WebDriverWait
     scrape_bjjfanatics_selenium(pages=2)
 
     print("[DEBUG] main(): Script completed. Check for 'bjjfanatics.db' and confirm data.")
