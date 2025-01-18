@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-fanatics_scraper_verbose.py
+fanatics_scraper_verbose_updated.py
 
-A verbose script to scrape BJJFanatics for BJJ instructionals
-and store them in a local SQLite database, with debug prints
-for troubleshooting.
+An updated, verbose script to scrape BJJFanatics with the new 
+HTML structure (product-card, product-card__item-title, product-card__price).
+Stores data in a local SQLite database named bjjfanatics.db.
 """
 
 import os
@@ -22,12 +22,10 @@ def create_database():
     """
     print("[DEBUG] create_database(): Starting database creation logic...")
     
-    # Print the current working directory so you know where the .db file goes
     cwd = os.getcwd()
     print(f"[DEBUG] Current working directory: {cwd}")
     
     try:
-        # Connect (creates bjjfanatics.db if it doesn't exist)
         conn = sqlite3.connect(DB_NAME)
         print(f"[DEBUG] Connected to '{DB_NAME}' database successfully.")
         
@@ -75,13 +73,21 @@ def scrape_bjjfanatics_collections(pages=2):
     """
     Scrape the BJJFanatics /collections/all pages.
     Defaults to 2 pages, but you can adjust. Includes extra debug prints.
+
+    Now updated to look for:
+      <div class="product-card">
+        <a class="product-card__item-title" href="...">Some Title</a>
+        <span class="product-card__price">$47.00</span>
+        ...
+      </div>
     """
     print(f"[DEBUG] scrape_bjjfanatics_collections(): Starting to scrape {pages} pages.")
     
     base_url = "https://bjjfanatics.com"
     headers = {
-        # A user-agent to reduce the chance of being blocked as a bot
-        "User-Agent": "mybjjbot/1.0 (+https://example.com)"
+        # Use a more realistic UA string to reduce blocking
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
     }
 
     for page_num in range(1, pages + 1):
@@ -102,36 +108,39 @@ def scrape_bjjfanatics_collections(pages=2):
             
             soup = BeautifulSoup(response.text, "html.parser")
             
-            # Look for divs with class="product-grid-item"
-            products = soup.find_all("div", class_="product-grid-item")
+            # Updated selector: look for divs with class="product-card"
+            products = soup.find_all("div", class_="product-card")
             print(f"[DEBUG] Found {len(products)} products on page {page_num}.")
 
             if len(products) == 0:
                 print("[WARN] 0 products found. Possibly HTML structure changed or we're blocked?")
             
             for product in products:
-                link_tag = product.find("a", class_="product-link")
-                if not link_tag:
-                    print("[DEBUG] No 'a.product-link' found in this product element.")
-                    continue
+                # Title anchor with class "product-card__item-title"
+                title_tag = product.find("a", class_="product-card__item-title")
+                if title_tag:
+                    product_name = title_tag.get_text(strip=True)
+                    product_url = base_url + title_tag.get("href", "")
+                else:
+                    product_name = None
+                    product_url = None
                 
-                product_url = base_url + link_tag.get("href", "")
-                raw_title = link_tag.get("title", "").strip()
+                # Price element with class "product-card__price"
+                price_tag = product.find("span", class_="product-card__price")
+                if price_tag:
+                    price = price_tag.get_text(strip=True)
+                else:
+                    price = "N/A"
                 
-                # Attempt to get price
-                price_tag = product.find("span", class_="price")
-                price = price_tag.get_text(strip=True) if price_tag else "N/A"
-                
-                # Try parsing "Creator - Title" if present
+                # If you still want to parse out a "creator" from the name (e.g., "Gordon Ryan - System"),
+                # you could do something naive like:
                 creator = None
-                product_name = raw_title
-                if " - " in raw_title:
-                    parts = raw_title.split(" - ", 1)
+                if product_name and " - " in product_name:
+                    parts = product_name.split(" - ", 1)
                     if len(parts) == 2:
                         creator = parts[0].strip()
                         product_name = parts[1].strip()
                 
-                # Insert record into the database
                 insert_instructional(product_name, creator, price, product_url)
             
             # Sleep a bit to avoid hammering the server
