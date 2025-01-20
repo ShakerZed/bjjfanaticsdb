@@ -108,16 +108,22 @@ def scrape_bjjfanatics_selenium(pages=2):
 
         try:
             driver.get(url)
-            
-            wait = WebDriverWait(driver, 15)
-            wait.until(
-                EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div.product-card"))
-            )
+
+            immediate_html_filename = f"page_{page_num}_immediate.html"
+            with open(immediate_html_filename, "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+            print(f"[DEBUG] Saved immediate page source to '{immediate_html_filename}'")
+
+
+           # wait = WebDriverWait(driver, 15)
+           # wait.until(
+           #      EC.presence_of_all_elements_located((By.CSS_SELECTOR, "product-card__grid-item"))
+           #  )
 
             html = driver.page_source
             soup = BeautifulSoup(html, "html.parser")
 
-            products = soup.find_all("div", class_="product-card")
+            products = soup.find_all("div", class_="product-card__grid-item")
             print(f"[DEBUG] Found {len(products)} products on page {page_num}.")
 
             if len(products) == 0:
