@@ -100,27 +100,58 @@ def scrape_all_pages():
 
         # Process each product on the page
         for product in products:
+            # 1) Find the title
             title_tag = product.find(class_="product-card__item-title")
             if title_tag:
                 product_name = title_tag.get_text(strip=True)
             else:
                 product_name = "Unknown Product"
 
+            # 2) Find the product URL
             link_tag = product.find("a", class_="product-card__item-title")
             if link_tag and link_tag.get("href"):
                 product_url = base_url + link_tag.get("href", "")
             else:
                 product_url = None
 
-            price_tag = product.find("span", class_="product-card__price")
-            price = price_tag.get_text(strip=True) if price_tag else "N/A"
+            # 3) Find the price
+            #    Note the new classes: "product-card__item-price product-price"
+            #    If the site has multiple combos, e.g. "span.product-card__price" or
+            #    "span.product-card__item-price product-price", adapt here.
+            price_tag = product.find("span", class_="product-card__item-price product-price")
+            if price_tag:
+                price = price_tag.get_text(strip=True)
+            else:
+                # Fallback if it uses "product-card__price" in some places
+                fallback_price_tag = product.find("span", class_="product-card__price")
+                if fallback_price_tag:
+                    price = fallback_price_tag.get_text(strip=True)
+                else:
+                    price = "N/A"
 
+            # 4) Parse out the creator if it's embedded in the product name
+            #    If the site uses "Gordon Ryan - System" or "System by Gordon Ryan",
+            #    adjust logic accordingly.
             creator = None
+            # a) Try " - " pattern first
             if product_name and " - " in product_name:
                 parts = product_name.split(" - ", 1)
                 if len(parts) == 2:
                     creator = parts[0].strip()
                     product_name = parts[1].strip()
+            # b) Or try " by " pattern
+            elif product_name and " by " in product_name.lower():
+                # use .rsplit to only split on the last " by "
+                # e.g. "The DS Team by John Danaher" => product="The DS Team", creator="John Danaher"
+                lower_title = product_name.lower()
+                idx = lower_title.rfind(" by ")
+                if idx != -1:
+                    # keep the original case for the substring
+                    creator_candidate = product_name[idx+4:].strip()
+                    product_name_candidate = product_name[:idx].strip()
+                    # update
+                    creator = creator_candidate
+                    product_name = product_name_candidate
 
             insert_instructional(product_name, creator, price, product_url)
 
