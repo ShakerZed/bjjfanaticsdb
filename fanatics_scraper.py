@@ -21,7 +21,7 @@ Dependencies:
 
 Usage:
     1) Ensure ChromeDriver is installed.
-    2) Run: python fanatics_selenium_scraper_all_pages.py
+    2) Run: python fanatics_scraper.py
     3) Inspect bjjfanatics.db to see scraped results.
 
 """
