@@ -1,11 +1,10 @@
-.gitignore
 
 import praw
 
 reddit = praw.Reddit(
-    client_id="71rkosnFXt2NZBvyOz9N7A",
-    client_secret="4E2h1YhnGLcoYobQlMY6gtmJcQ4qKg",
-    user_agent="trends_danaher_bot/0.1 by Classic_Visual4481"
+    client_id=os.environ.get("REDDIT_CLIENT_ID"),
+    client_secret=os.environ.get("REDDIT_CLIENT_SECRET"),
+    user_agent=os.environ.get("REDDIT_USER_AGENT")
 )
 
 # Check read access: fetch the top 5 posts from a subreddit
