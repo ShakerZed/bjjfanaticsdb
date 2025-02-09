@@ -1,3 +1,5 @@
+.gitignore
+
 import praw
 
 reddit = praw.Reddit(
@@ -9,3 +11,5 @@ reddit = praw.Reddit(
 # Check read access: fetch the top 5 posts from a subreddit
 for submission in reddit.subreddit("bjj").hot(limit=10):
     print(submission.title)
+
+
