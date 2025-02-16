@@ -159,7 +159,7 @@ def main():
     match_submissions(subreddit_name="bjj", instructionals=instructionals, matches=matches, limit=400)
 
     # Check newest comments in /r/bjj
-    match_comments(subreddit_name="bjj", instructionals=instructionals, matches=matches, limit=500)
+    match_comments(subreddit_name="bjj", instructionals=instructionals, matches=matches, limit=10000)
 
     # Print summary at the end
     total_found = len(matches)
