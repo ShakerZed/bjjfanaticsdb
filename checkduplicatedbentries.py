@@ -8,7 +8,7 @@ kano_judoscraper_implementation.py
 3) Stores matched throws in a new database (judo_mentions.db) with timestamps.
 4) Prints out any matched throws, plus a final summary of total matches and a tally of throw mentions.
 5) (NEW) Provides data visualization using Matplotlib and Seaborn, including:
-   - A line chart showing top throws over time.
+   - A line chart showing top throws over time (now grouped by month).
    - A bar chart showing the most-mentioned throws.
 
 This script is useful for tracking mentions of Judo techniques across Reddit, allowing for
@@ -44,11 +44,12 @@ import seaborn as sns
 
 ################## LOAD REDDIT CREDENTIALS FROM ENV ##################
 reddit = praw.Reddit(
-    client_id=os.getenv("REDDIT_CLIENT_ID"),
-    client_secret=os.getenv("REDDIT_CLIENT_SECRET"),
-    user_agent=os.getenv("REDDIT_USER_AGENT")
+    client_id="71rkosnFXt2NZBvyOz9N7A",
+    client_secret="4E2h1YhnGLcoYobQlMY6gtmJcQ4qKg",
+    user_agent="trends_danaher_bot/0.1 by Classic_Visual4481"
 )
 ######################################################################
+
 
 def load_judo_throws(db_path="judo_throws.db"):
     """
@@ -62,6 +63,7 @@ def load_judo_throws(db_path="judo_throws.db"):
     conn.close()
     return [row[0] for row in rows]
 
+
 def find_throws_in_text(text, judo_throws):
     """
     Uses a regex with word boundaries to find Judo throws in text.
@@ -70,10 +72,11 @@ def find_throws_in_text(text, judo_throws):
     found = []
     text_lower = text.lower()
     for throw in judo_throws:
-        pattern = rf'(?i)\\b{{re.escape(throw)}}\\b'
+        pattern = rf'(?i)\b{re.escape(throw)}\b'
         if re.search(pattern, text_lower):
             found.append(throw)
     return found
+
 
 def store_mention(db_path, mention_type, post_id, url, throw_name):
     """
@@ -90,6 +93,7 @@ def store_mention(db_path, mention_type, post_id, url, throw_name):
     """, (timestamp, mention_type, post_id, url, throw_name))
     conn.commit()
     conn.close()
+
 
 def match_submissions(subreddit_name, judo_throws, matches, db_path, limit=10):
     """
@@ -109,6 +113,7 @@ def match_submissions(subreddit_name, judo_throws, matches, db_path, limit=10):
             for throw in found:
                 store_mention(db_path, "submission", submission.id, submission.url, throw)
 
+
 def match_comments(subreddit_name, judo_throws, matches, db_path, limit=20):
     """
     Scans newest comments in /r/<subreddit_name>, searching for Judo throw mentions.
@@ -127,6 +132,7 @@ def match_comments(subreddit_name, judo_throws, matches, db_path, limit=20):
             print("----------")
             for throw in found:
                 store_mention(db_path, "comment", comment.id, permalink, throw)
+
 
 def remove_exact_duplicates(db_path="judo_mentions.db"):
     """
@@ -149,6 +155,7 @@ def remove_exact_duplicates(db_path="judo_mentions.db"):
     conn.close()
     print("Exact duplicates removed.")
 
+
 def remove_soft_duplicates(db_path="judo_mentions.db"):
     """
     Removes duplicates where (post_id, throw_name) are identical, ignoring timestamp differences.
@@ -169,6 +176,7 @@ def remove_soft_duplicates(db_path="judo_mentions.db"):
     conn.commit()
     conn.close()
     print("Soft duplicates removed (ignoring timestamp differences).")
+
 
 def summarize_mentions(db_path):
     """
@@ -204,7 +212,8 @@ def summarize_mentions(db_path):
 
     print("\n[INFO] Throw mentions tally:")
     for throw_name, count in throw_counts.most_common():
-       print(f"{throw_name}: {count} times")
+        print(f"{throw_name}: {count} times")
+
 
 def plot_top_throws(db_path="judo_mentions.db", top_n=10):
     """
@@ -219,26 +228,24 @@ def plot_top_throws(db_path="judo_mentions.db", top_n=10):
 
     plt.figure(figsize=(10, 6))
     sns.barplot(x=throw_counts.values, y=throw_counts.index, palette="viridis")
-    plt.title(f"Top {{top_n}} Judo Throws Mentioned")
+    plt.title(f"Top {top_n} Judo Throws Mentioned")
     plt.xlabel("Number of Mentions")
     plt.ylabel("Throw Name")
     plt.tight_layout()
     plt.show()
 
+
 def plot_mentions_over_time(db_path="judo_mentions.db", top_n=5):
     """
     Plots a line chart of the most popular throws over time, grouped by month.
-    Truncates outliers above mean + 4*std for each throw to mean+4*std.
-    A note is added on the chart to indicate this truncation.
-
+    
     Steps:
     1) Get top N throws overall.
     2) Convert timestamps to monthly periods.
     3) Group by (month, throw_name) and count mentions.
     4) Pivot so each throw is a column, months are rows.
     5) Fill any missing months with zero.
-    6) For each throw, cap values above (mean+4*std).
-    7) Plot a line chart with months on the X-axis.
+    6) Plot a line chart with months on the X-axis.
     """
     conn = sqlite3.connect(db_path)
     df = pd.read_sql_query("SELECT timestamp, throw_name FROM mentions", conn)
@@ -266,7 +273,7 @@ def plot_mentions_over_time(db_path="judo_mentions.db", top_n=5):
     # Sort by month
     pivot_df = pivot_df.sort_index()
 
-    # If you want a continuous monthly timeline (i.e., fill missing months)
+    # Fill missing months so the timeline is continuous
     if not pivot_df.empty:
         full_month_range = pd.date_range(
             start=pivot_df.index.min(),
@@ -276,13 +283,15 @@ def plot_mentions_over_time(db_path="judo_mentions.db", top_n=5):
         pivot_df = pivot_df.reindex(full_month_range, fill_value=0)
         pivot_df.index.name = "month"
 
+    # Plot line chart
+    plt.figure(figsize=(12, 6))
     # --- Outlier Truncation Logic (per throw) ---
     for throw in pivot_df.columns:
         col = pivot_df[throw]
         mean_val = col.mean()
         std_val = col.std()
         if std_val > 0:  # avoid dividing by zero or if everything is same
-            cap = mean_val + 4 * std_val
+            cap = mean_val + 1 * std_val
             # Cap values above mean+4std
             pivot_df.loc[col > cap, throw] = cap
 
@@ -292,10 +301,12 @@ def plot_mentions_over_time(db_path="judo_mentions.db", top_n=5):
         plt.plot(pivot_df.index, pivot_df[throw], "o-", label=throw)
 
     plt.title(f"Monthly Mentions for Top {top_n} Throws (Outliers Capped)")
-    plt.xlabel("Month")
+    plt.xlabel("Month") 
     plt.ylabel("Mentions")
     plt.xticks(rotation=45)
     plt.legend()
+    plt.yscale("log")
+
 
     # Add a note about capping outliers
     plt.text(
@@ -306,8 +317,6 @@ def plot_mentions_over_time(db_path="judo_mentions.db", top_n=5):
         color='red'
     )
 
-    plt.tight_layout()
-    plt.show()
 
 
 def main():
@@ -318,10 +327,10 @@ def main():
     - Scrapes submissions and comments for mentions.
     - Removes duplicates.
     - Summarizes the results.
-    - Generates visualizations.
+    - Generates visualizations (bar chart & monthly line chart).
     """
     judo_throws = load_judo_throws("judo_throws.db")
-    print(f"[INFO] Loaded {{len(judo_throws)}} Judo throws from judo_throws.db.")
+    print(f"[INFO] Loaded {len(judo_throws)} Judo throws from judo_throws.db.")
 
     db_path = "judo_mentions.db"
     conn = sqlite3.connect(db_path)
@@ -340,8 +349,8 @@ def main():
     conn.close()
 
     # Scrape and store mentions
-    match_submissions("judo", judo_throws, [], db_path, limit=100000)
-    match_comments("judo", judo_throws, [], db_path, limit=100000)
+    match_submissions("judo", judo_throws, [], db_path, limit=10000000)
+    match_comments("judo", judo_throws, [], db_path, limit=10000000)
 
     # Remove duplicate entries before summarizing and visualizing
     remove_exact_duplicates(db_path)
@@ -354,8 +363,9 @@ def main():
     print("\n[INFO] Generating bar chart of top throws...")
     plot_top_throws(db_path)
 
-    print("\n[INFO] Generating line chart of top throws over time...")
+    print("\n[INFO] Generating line chart of top throws over time (monthly)...")
     plot_mentions_over_time(db_path)
+
 
 if __name__ == "__main__":
     main()
